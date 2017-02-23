@@ -1,0 +1,24 @@
+<Items>
+    <Item type="module"
+          name="sedb"
+          version="1.0.1"
+          health="stable"
+          author="Jake Valletta (jakev)"
+          about="Create and query device SEAndroid policy."
+          localName="sedb" />
+
+    <Item type="binary"
+          name="sesearch"
+          version="1.0.0"
+          health="stable"
+          author="Jake Valletta (jakev)"
+          localName="sesearch" />
+
+    <Item type="library"
+          name="SeUtils"
+          about="API for working with SEAndroid."
+          version="1.0.1"
+          health="beta"
+          author="Jake Valletta (jakev)"
+          localName="SeUtils" />
+</Items>
