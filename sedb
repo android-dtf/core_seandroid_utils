@@ -98,7 +98,7 @@ class sedb(module.Module):
     author = 'Jake Valletta (jakev)'
     health = 'stable'
     name = 'sedb'
-    version = '1.0.1'
+    version = '1.0.2'
 
     adb = None
     sedb = None
