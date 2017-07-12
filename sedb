@@ -22,6 +22,7 @@ from __future__ import print_function
 from argparse import ArgumentParser
 
 import os.path
+import shutil
 
 from dtf.adb import DtfAdb
 from dtf.packages import launch_binary
@@ -135,6 +136,22 @@ class sedb(module.Module):
         log.e(TAG, "Could not find '%s'!" % file_name)
         return -1
 
+    @classmethod
+    def file_copy(cls, dir_name, file_name):
+
+        """Copy a file to new directory, error if not valid"""
+
+        source_name = "%s/%s" % (dir_name, file_name)
+        dest_name = "%s/%s/%s" % (prop.TOP, SEANDROID_DIR_NAME, file_name)
+
+        if not os.path.isfile(source_name):
+            log.e(TAG, "Could not find '%s'!" % source_name)
+            return -1
+        log.d(TAG, "File found: %s" % source_name)
+
+        shutil.copyfile(source_name, dest_name)
+        return 0
+
     def do_pull_files(self):
 
         """Pull SEAndroid related files from device"""
@@ -162,6 +179,31 @@ class sedb(module.Module):
         self.file_pull(adb, PROPERTY_CONTEXTS_NAME, DEFAULT_LOCATIONS)
         self.file_pull(adb, SERVICE_CONTEXTS_NAME, DEFAULT_LOCATIONS)
 
+        return 0
+
+    def build_and_populate_db(self):
+
+        """Build and populate DB"""
+
+        # Create our DB
+        local_sedb = SeUtils.SeDb()
+
+        log.i(TAG, "Creating SEAndroid database...")
+
+        if local_sedb.drop_tables() != 0:
+            log.e(TAG, "Error dropping tables. Exiting.")
+            return -1
+
+        if local_sedb.create_tables() != 0:
+            log.e(TAG, "Database creation failed. Exiting.")
+            return -2
+
+        # Now process data to the DB
+        if self.do_populate_db(local_sedb) != 0:
+            log.e(TAG, "Error populating SEAndroid DB!")
+            return -3
+
+        log.i(TAG, "SEAndroid DB created!")
         return 0
 
     @classmethod
@@ -407,6 +449,28 @@ class sedb(module.Module):
 
             return 0
 
+    def copy_from_import(self, dir_name):
+
+        """Copy SEAndroid files to proper place"""
+
+        # First copy the sepolicy
+        if self.file_copy(dir_name, SEPOLICY_FILE_NAME) != 0:
+            log.e(TAG, "sepolicy not found, cannot continue!")
+            return -1
+
+        # Next MAC security XML
+        if self.file_copy(dir_name, MAC_PERMISSIONS_XML_NAME) != 0:
+            log.e(TAG, "MAC permissions XML not found, cannot continue!")
+            return -2
+
+        # Now the contexts, don't fail if we can't find one.
+        self.file_copy(dir_name, FILE_CONTEXTS_NAME)
+        self.file_copy(dir_name, SEAPP_CONTEXTS_NAME)
+        self.file_copy(dir_name, PROPERTY_CONTEXTS_NAME)
+        self.file_copy(dir_name, SERVICE_CONTEXTS_NAME)
+
+        return 0
+
     @module.sub_cmd("create", usage="Create the SEAndroid database.")
     def cmd_create(self):
 
@@ -432,25 +496,10 @@ class sedb(module.Module):
 
         prop.set_prop("Local", "seandroid-dir", SEANDROID_DIR_NAME)
 
-        # Create our DB
-        local_sedb = SeUtils.SeDb()
-
-        log.i(TAG, "Creating SEAndroid database...")
-
-        if local_sedb.drop_tables() != 0:
-            log.e(TAG, "Error dropping tables. Exiting.")
-            return -3
-
-        if local_sedb.create_tables() != 0:
-            log.e(TAG, "Database creation failed. Exiting.")
-            return -4
-
-        # Now process data to the DB
-        if self.do_populate_db(local_sedb) != 0:
-            log.e(TAG, "Error populating SEAndroid DB!")
+        if self.build_and_populate_db() != 0:
+            log.e(TAG, "Unable to build DB!")
             return -5
 
-        log.i(TAG, "SEAndroid DB created!")
         return 0
 
     @module.sub_cmd("appmap", usage="Determine app context.")
@@ -690,5 +739,49 @@ class sedb(module.Module):
             print("Exact Match: %s" % matched)
         else:
             print("Pattern Match: %s" % matched)
+
+        return 0
+
+    @module.sub_cmd("import", usage="Import SEAndroid data from firmware dump")
+    def cmd_import(self, args):
+
+        """Import data from directory"""
+
+        if len(args) != 1:
+            print("Usage: sedb import [se_directory]")
+            return -1
+
+        if not self.has_seandroid():
+            log.e(TAG, "This device does not use SEAndroid!")
+            return 0
+
+        # We want to be where we were run
+        self.cd_launch_dir()
+
+        sefiles_dir = args[0]
+
+        # Does it exist?
+        if not os.path.isdir(sefiles_dir):
+            log.e(TAG, "Directory '%s' does not exist!")
+            return -2
+
+        local_seandroid_dir_name = "%s/%s" % (prop.TOP, SEANDROID_DIR_NAME)
+
+        # First check if the seandroid dir exists.
+        if os.path.isdir(local_seandroid_dir_name):
+            log.e(TAG, "SEAndroid directory exists!")
+            return -3
+
+        os.mkdir(local_seandroid_dir_name)
+
+        if self.copy_from_import(sefiles_dir) != 0:
+            log.e(TAG, "Error importing SEAndroid files!")
+            return -4
+
+        prop.set_prop("Local", "seandroid-dir", SEANDROID_DIR_NAME)
+
+        if self.build_and_populate_db() != 0:
+            log.e(TAG, "Unable to build DB!")
+            return -5
 
         return 0
