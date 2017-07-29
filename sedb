@@ -105,19 +105,6 @@ class sedb(module.Module):
     prop_parser = None
     sepolicy_file = None
 
-    def usage(self):
-
-        """Usage message"""
-
-        print("SEAndroid DB dtf Module v%s" % self.version)
-        print("")
-        print("Submodules:")
-        print("    create      Create the SEAndroid database.")
-        print("    appmap      Determine app context.")
-        print("")
-
-        return 0
-
     # Create related
     @classmethod
     def file_pull(cls, adb, file_name, locations):
