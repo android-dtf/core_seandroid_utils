@@ -1,0 +1,3 @@
+[submodule "sefcontext-parser"]
+	path = sefcontext-parser
+	url = https://github.com/jakev/sefcontext-parser
